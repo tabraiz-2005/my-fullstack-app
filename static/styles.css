@@ -289,14 +289,7 @@ Chat Messages
 Chat Input Form
 --- */
 .input-form {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 0 1.5rem 1.5rem;
-  background-color: var(--bg-dark-secondary);
-}
-
-.input-form-inner {
+  /* --- START OF FIX: Styles moved here --- */
   display: flex;
   align-items: flex-end;
   gap: 0.75rem;
@@ -305,7 +298,19 @@ Chat Input Form
   border-radius: 1rem;
   padding: 0.5rem 0.75rem 0.5rem 0.5rem;
   box-shadow: var(--shadow-golden-soft);
+  /* --- END OF FIX --- */
+
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding-bottom: 1.5rem; /* Add padding to the bottom of the container */
+  background-color: var(--bg-dark-secondary); /* Ensure parent bg is correct */
 }
+
+/* This class was removed as it's not in the HTML */
+/*
+.input-form-inner { ... }
+*/
 
 .icon-button {
   height: 44px;
@@ -504,7 +509,8 @@ Responsive Design (Mobile)
   }
   
   .input-form {
-    padding: 0 0.75rem 0.75rem;
+    padding: 0.75rem; /* Simplified padding for mobile */
+    margin-bottom: 0.5rem; /* Add some space from screen bottom */
   }
 
   .message {
