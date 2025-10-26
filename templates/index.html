@@ -1,32 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-MIME-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GRAVITAS GPT</title>
+    <title>GravitasGPT</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- CSS -->
     <link rel="stylesheet" href="/static/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/tokyo-night-dark.min.css">
-    <script defer src="/static/interface.js"></script>
-    <script defer src="/static/chat.js"></script>
   </head>
   <body>
     
-    <div class="chat-container">
-      <h1 class="heading">ASK GRAVITAS GPT</h1>
-      <div class="chat-wrapper">
-        <div id="chat-messages" class="chat-box"></div>
-        <form id="chat-form" class="input-form">
+    <div class="app-container">
+
+      <!-- NARROW SIDEBAR (ICONS ONLY) -->
+      <nav class="sidebar-narrow">
+        <a href="#" class="sidebar-logo">
+          <!-- Placeholder Logo Icon -->
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 7L12 12L22 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </nav>
+
+      <!-- MAIN SIDEBAR (CHAT HISTORY) -->
+      <aside class="sidebar-main">
+        <div class="sidebar-header">
+          <div class="logo-text">GRAVITAS</div>
+          <button class="sidebar-btn">
+            <!-- New Chat Icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5V19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            New chat
+          </button>
+        </div>
+
+        <div class="sidebar-menu">
+          <a href="#" class="menu-item">
+            <!-- Search Icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Search chat
+          </a>
+          <a href="#" class="menu-item">
+            <!-- Library Icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 19.5C4 18.837 4.26339 18.2011 4.73223 17.7322C5.20107 17.2634 5.83696 17 6.5 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 17C6.5 16.1714 6.82902 15.3752 7.4216 14.7826C8.01419 14.19 8.81032 13.861 9.63896 13.861H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6C4 5.33696 4.26339 4.70107 4.73223 4.23223C5.20107 3.76339 5.83696 3.5 6.5 3.5H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 3.5C6.5 2.67142 6.82902 1.87525 7.4216 1.28266C8.01419 0.690068 8.81032 0.361084 9.63896 0.361084H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Library
+          </a>
+          <a href="#" class="menu-item">
+            <!-- Projects Icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 3H10C10.5304 3 11.0391 3.21071 11.4142 3.58579C11.7893 3.96086 12 4.46957 12 5V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 21H21V5C21 4.46957 20.7893 3.96086 20.4142 3.58579C20.0391 3.21071 19.5304 3 19 3H12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 21V5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Projects
+          </a>
+        </div>
+
+        <div class="chat-history">
+          <div class="chat-history-header">Chats</div>
+          <!-- Chat history list will go here -->
+          <p class="no-chats">No chats yet</p>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="user-profile">
+            <div class="user-avatar">J</div>
+            <div class="user-info">
+              <span class="user-name">John</span>
+              <span class="user-plan">Free</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN CHAT AREA -->
+      <main class="chat-area">
+        <header class="chat-header">
+          <!-- Top Right Auth Buttons -->
+          <div class="auth-buttons">
+            <button class="btn btn-secondary">Sign in</button>
+            <button class="btn btn-primary">Sign up</button>
+          </div>
+        </header>
+
+        <!-- This container holds the messages -->
+        <div id="chat-messages" class="chat-messages-container">
+          <!-- Welcome Message -->
+          <div id="welcome-message" class="welcome-container">
+            <h1 class="welcome-title">Good to see you, John.</h1>
+            <p class="welcome-subtitle">Ask about leadership, presence, or empathy.</p>
+          </div>
+          <!-- Messages will be injected here by main.js -->
+        </div>
+
+        <!-- Sticky Input Form at the bottom -->
+        <form id="chat-form" class="chat-input-bar">
+          <button type="button" class="input-btn" aria-label="New Chat">
+            <!-- Plus Icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5V19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <textarea
-          type="text"
-          class="input"
-          id="user-input"
-          name="user_input"
-          placeholder="Type your message..."></textarea>
-          <button class="button" type="submit" id="submitBtn">Send</button>
+            class="input"
+            id="user-input"
+            name="user_input"
+            placeholder="Ask Anything..."
+            aria-label="Your message"
+            rows="1"></textarea>
+          <button type="button" class="input-btn btn-secondary" aria-label="Model Selector">
+            Auto
+            <!-- Dropdown Icon -->
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="btn btn-primary" type="submit" id="submitBtn" aria-label="Send message">
+            <!-- Send Icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
         </form>
-      </div>
+        
+      </main>
+
     </div>
-    <script defer src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script src="/static/main.js"></script>
   </body>
 </html>
