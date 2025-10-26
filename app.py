@@ -141,32 +141,34 @@ def detect_agent(user_input: str):
     if not any(term in text for term in leadership_terms):
         return AGENTS["guardian"]
 
+    # ---FIXED BUG HERE---
     # Agent routing (This is just a default router, you can make this smarter)
-    if any(word in text for word in ["emotion", "empathy",...]):
+    if any(word in text for word in ["emotion", "empathy", "feeling", "conflict", "sensitive"]):
         return AGENTS["eidos"]
-    elif any(word in text for word in ["body", "gesture",...]):
+    elif any(word in text for word in ["body", "gesture", "posture", "tone", "eye contact", "nonverbal"]):
         return AGENTS["kinesis"]
-    elif any(word in text for word in ["gravitas", "presence",...]):
+    elif any(word in text for word in ["gravitas", "presence", "authority", "composure", "calm"]):
         return AGENTS["gravis"]
-    elif any(word in text for word in ["virtue", "integrity",...]):
+    elif any(word in text for word in ["virtue", "integrity", "values", "duty", "ethics", "honor"]):
         return AGENTS["virtus"]
-    elif any(word in text for word in ["persuade", "influence",...]):
+    elif any(word in text for word in ["persuade", "influence", "story", "speech", "pitch", "proposal"]):
         return AGENTS["ethos"]
-    elif any(word in text for word in ["leadership", "team",...]):
+    elif any(word in text for word in ["leadership", "team", "meeting", "authority"]):
         return AGENTS["praxis"]
-    elif any(word in text for word in ["inner", "mindfulness",...]):
-        return AGNETS["anima"]
-    elif any(word in text for word in ["appearance", "attire",...]):
+    elif any(word in text for word in ["inner", "mindfulness", "alignment", "purpose", "anxiety"]):
+        return AGENTS["anima"] # <-- FIXED TYPO HERE (was AGNETS)
+    elif any(word in text for word in ["appearance", "attire", "style", "grooming", "energy", "brand"]):
         return AGENTS["persona"]
-    elif any(word in text for word in ["first impression",...]):
+    elif any(word in text for word in ["first impression", "introduce", "introduction", "elevator", "rapport"]):
         return AGENTS["impressa"]
-    elif any(word in text for word in ["empathic", "listen",...]):
+    elif any(word in text for word in ["empathic", "listen", "understand", "compassion", "care"]):
         return AGENTS["sentio"]
     elif "senate" in text or "consult" in text:
         return SENATE
     else:
         # Default to the Senate if on-topic but not specific
         return SENATE
+    # ---END OF FIX---
 
 
 def generate(messages, model_type):
@@ -219,3 +221,4 @@ def gpt4():
 
 if __name__ == '__main__':
     app.run(debug=True)
+
