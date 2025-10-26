@@ -132,18 +132,22 @@ SENATE = {
 def detect_agent(user_input: str):
     text = user_input.lower().strip()
 
+    # --- UPDATED KEYWORDS ---
     # Check if query belongs to GravitasGPT domain
     leadership_terms = [
-        "leadership", "team", "emotion", "empathy", "speech", "presence", "communication",
-        "influence", "virtue", "authority", "values", "mindfulness", "presentation", "confidence",
-        "persuasion", "integrity", "motivation", "body language", "posture"
+        "leader", "leadership", "team", "emotion", "empathy", "speech", "presence", 
+        "communicate", "communication", "influence", "virtue", "authority", "values", 
+        "mindfulness", "presentation", "confidence", "persuasion", "integrity", 
+        "motivation", "body language", "posture", "feeling", "anxiety", "stress"
     ]
+    # Use 'any' to see if any term is a substring of the user's input
     if not any(term in text for term in leadership_terms):
+        print(f"DEBUG: Query '{text}' is OFF-TOPIC. Routing to Guardian.") # DEBUG LOG
         return AGENTS["guardian"]
 
-    # ---FIXED BUG HERE---
+    # --- UPDATED KEYWORDS ---
     # Agent routing (This is just a default router, you can make this smarter)
-    if any(word in text for word in ["emotion", "empathy", "feeling", "conflict", "sensitive"]):
+    if any(word in text for word in ["emotion", "empathy", "feeling", "conflict", "sensitive", "stress"]):
         return AGENTS["eidos"]
     elif any(word in text for word in ["body", "gesture", "posture", "tone", "eye contact", "nonverbal"]):
         return AGENTS["kinesis"]
@@ -153,13 +157,13 @@ def detect_agent(user_input: str):
         return AGENTS["virtus"]
     elif any(word in text for word in ["persuade", "influence", "story", "speech", "pitch", "proposal"]):
         return AGENTS["ethos"]
-    elif any(word in text for word in ["leadership", "team", "meeting", "authority"]):
+    elif any(word in text for word in ["leader", "leadership", "team", "meeting", "authority"]):
         return AGENTS["praxis"]
     elif any(word in text for word in ["inner", "mindfulness", "alignment", "purpose", "anxiety"]):
-        return AGENTS["anima"] # <-- FIXED TYPO HERE (was AGNETS)
+        return AGENTS["anima"]
     elif any(word in text for word in ["appearance", "attire", "style", "grooming", "energy", "brand"]):
         return AGENTS["persona"]
-    elif any(word in text for word in ["first impression", "introduce", "introduction", "elevator", "rapport"]):
+    elif any(word in text for word in ["first impression", "introduce", "introduction", "elevator", "rapport", "impress"]):
         return AGENTS["impressa"]
     elif any(word in text for word in ["empathic", "listen", "understand", "compassion", "care"]):
         return AGENTS["sentio"]
@@ -167,6 +171,7 @@ def detect_agent(user_input: str):
         return SENATE
     else:
         # Default to the Senate if on-topic but not specific
+        print(f"DEBUG: Query '{text}' is ON-TOPIC but not specific. Routing to Senate.") # DEBUG LOG
         return SENATE
     # ---END OF FIX---
 
@@ -176,7 +181,12 @@ def generate(messages, model_type):
         try:
             user_message = next((m["content"] for m in reversed(
                 messages) if m["role"] == "user"), "")
+            
+            # --- ADDED DEBUG LOGGING ---
+            print(f"\nDEBUG: Received user message: '{user_message}'")
             selected_agent = detect_agent(user_message)
+            print(f"DEBUG: Routed to agent: {selected_agent['name']}")
+            # --- END DEBUG LOGGING ---
 
             all_messages = [
                 {"role": "system", "content": selected_agent["system"]}
