@@ -1,0 +1,6 @@
+Writing objects: 100% (3/3), 454 bytes | 454.00 KiB/s, done.
+Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
+remote: Resolving deltas: 100% (1/1), completed with 1 local object.
+To https://github.com/tabraiz-2005/my-fullstack-app.git
+   1ce0956..ceb063b  main -> main
+(.venv) (base) apple@Apples-MacBook-Pro-3 flaskGPT-main % 
