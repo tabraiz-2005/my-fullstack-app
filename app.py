@@ -1,6 +1,6 @@
 import os
-import magic # <-- NEW: For image detection
-import base64 # <-- NEW: For handling images
+import magic  # For image detection
+import base64  # For handling images
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -20,10 +20,12 @@ app = Flask(__name__)
 # Initialize the client with the key
 client = OpenAI(api_key=API_KEY)
 
+
 # This route serves your main HTML file
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 # This is the /static/styles.css and /static/main.js
 # Flask handles this automatically from the 'static' folder.
@@ -152,14 +154,14 @@ def detect_agent(user_input: str):
 
     # Check if query belongs to GravitasGPT domain
     leadership_terms = [
-        "leader", "leadership", "team", "emotion", "empathy", "speech", "presence", 
-        "communicate", "communication", "influence", "virtue", "authority", "values", 
-        "mindfulness", "presentation", "confidence", "persuasion", "integrity", 
+        "leader", "leadership", "team", "emotion", "empathy", "speech", "presence",
+        "communicate", "communication", "influence", "virtue", "authority", "values",
+        "mindfulness", "presentation", "confidence", "persuasion", "integrity",
         "motivation", "body language", "posture", "feeling", "anxiety", "stress"
     ]
     # Use 'any' to see if any term is a substring of the user's input
     if not any(term in text for term in leadership_terms):
-        print(f"DEBUG: Query '{text}' is OFF-TOPIC. Routing to Guardian.") # DEBUG LOG
+        print(f"DEBUG: Query '{text}' is OFF-TOPIC. Routing to Guardian.")  # DEBUG LOG
         return AGENTS["guardian"]
 
     # Agent routing
@@ -171,7 +173,7 @@ def detect_agent(user_input: str):
         return AGENTS["gravis"]
     elif any(word in text for word in ["virtue", "integrity", "values", "duty", "ethics", "honor"]):
         return AGENTS["virtus"]
-    elif any(word in text for word in ["persuade", "influence", "story", "speech", "pitch", "proposal"]):
+    elif any(word in text for word in ["persuade", "influence", "story", "speech", "pitch", "proposal", "communicate", "communication"]):
         return AGENTS["ethos"]
     elif any(word in text for word in ["leader", "leadership", "team", "meeting", "authority"]):
         return AGENTS["praxis"]
@@ -187,13 +189,15 @@ def detect_agent(user_input: str):
         return SENATE
     else:
         # Default to the Senate if on-topic but not specific
-        print(f"DEBUG: Query '{text}' is ON-TOPIC but not specific. Routing to Senate.") # DEBUG LOG
+        print(f"DEBUG: Query '{text}' is ON-TOPIC but not specific. Routing to Senate.")  # DEBUG LOG
         return SENATE
 
 
 def generate(messages, model_type, image_data_url):
     def stream():
         try:
+            # --- START OF FIX: Corrected logic ---
+            
             # Get the text part of the last user message
             user_message_text = ""
             if messages:
@@ -211,7 +215,8 @@ def generate(messages, model_type, image_data_url):
             
             # --- ADDED DEBUG LOGGING ---
             print(f"\nDEBUG: Received user message: '{user_message_text}'")
-            if image_data:
+            # --- THIS IS THE FIX: Changed 'image_data' to 'image_data_url' ---
+            if image_data_url:
                 print("DEBUG: Image data was received.")
             
             selected_agent = detect_agent(user_message_text)
@@ -223,24 +228,23 @@ def generate(messages, model_type, image_data_url):
                 {"role": "system", "content": selected_agent["system"]}
             ]
 
-            # Add text and image to the *last* user message
-            last_user_message = messages[-1]
-            content_parts = [{"type": "text", "text": last_user_message["content"]}]
+            # --- START OF FIX 2: Correctly build message history ---
             
+            # Add all messages *except* the last one
+            if len(messages) > 1:
+                api_messages.extend(messages[:-1]) 
+
+            # Now, construct the last user message with text and image
+            content_parts = [{"type": "text", "text": user_message_text}]
             if image_data_url:
-                # Add the image to the content parts
                 content_parts.append({
                     "type": "image_url",
-                    "image_url": {
-                        "url": image_data_url,
-                        "detail": "low" # Use low detail for speed/cost
-                    }
+                    "image_url": { "url": image_data_url, "detail": "low" }
                 })
             
-            # Add previous messages (if any)
-            api_messages.extend(messages[:-1])
             # Add the final, combined user message
             api_messages.append({"role": "user", "content": content_parts})
+            # --- END OF FIX 2 ---
 
 
             # Guardian response for out-of-scope questions
@@ -251,7 +255,7 @@ def generate(messages, model_type, image_data_url):
                 )
                 return
             
-            # --- START OF FIX: Corrected streaming logic ---
+            # --- Corrected streaming logic from before ---
             with client.chat.completions.stream(
                 model="gpt-4o-mini",
                 messages=api_messages,
@@ -267,7 +271,7 @@ def generate(messages, model_type, image_data_url):
 
         except Exception as e:
             # This print will show up in your Render Logs
-            print(f"Error streaming response: {e}") 
+            print(f"Error streaming response: {e}")
             yield f"\n[Error: Could not get response from AI. Check server logs.]"
 
     return stream()
@@ -277,7 +281,7 @@ def generate(messages, model_type, image_data_url):
 def gpt4():
     data = request.get_json()
     messages = data.get('messages', [])
-    image_data_url = data.get('image', None) # Get image data
+    image_data_url = data.get('image', None)  # Get image data
     model_type = data.get('model_type', None)
     assistant_response = generate(messages, model_type, image_data_url)
     return Response(assistant_response, mimetype='text/event-stream')
@@ -285,5 +289,4 @@ def gpt4():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
 
