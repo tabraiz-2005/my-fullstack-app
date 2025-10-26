@@ -1,13 +1,11 @@
 import os
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
-from dotenv import load_dotenv # <-- 1. IMPORTED THIS
+from dotenv import load_dotenv
 
-# Load environment variables from .env file (for local development)
-# On Render, this line will be skipped, and it will use Render's variables
-load_dotenv() # <-- 2. ADDED THIS
+# Load .env file for local development
+load_dotenv()
 
-# 3. THIS BLOCK IS NEW AND SAFER
 # Get the API key from the environment
 API_KEY = os.environ.get("OPENAI_API_KEY")
 
@@ -17,14 +15,16 @@ if not API_KEY:
 
 app = Flask(__name__)
 
-# Initialize the client with the key we found
-client = OpenAI(api_key=API_KEY) # <-- 4. USE THE VALIDATED KEY
+# Initialize the client with the key
+client = OpenAI(api_key=API_KEY)
 
-
+# This route serves your main HTML file
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# This is the /static/styles.css and /static/main.js
+# Flask handles this automatically from the 'static' folder.
 
 AGENTS = {
     "eidos": {
@@ -141,37 +141,32 @@ def detect_agent(user_input: str):
     if not any(term in text for term in leadership_terms):
         return AGENTS["guardian"]
 
-    # Agent routing
-    if any(word in text for word in ["emotion", "empathy", "feeling", "conflict", "sensitive"]):
+    # Agent routing (This is just a default router, you can make this smarter)
+    if any(word in text for word in ["emotion", "empathy",...]):
         return AGENTS["eidos"]
-    elif any(word in text for word in ["body", "gesture", "posture", "tone", "eye contact", "nonverbal"]):
+    elif any(word in text for word in ["body", "gesture",...]):
         return AGENTS["kinesis"]
-    elif any(word in text for word in ["gravitas", "presence", "authority", "composure", "calm"]):
+    elif any(word in text for word in ["gravitas", "presence",...]):
         return AGENTS["gravis"]
-    elif any(word in text for word in ["virtue", "integrity", "values", "duty", "ethics", "honor"]):
+    elif any(word in text for word in ["virtue", "integrity",...]):
         return AGENTS["virtus"]
-    elif any(word in text for word in ["persuade", "influence", "story", "speech", "pitch", "proposal"]):
+    elif any(word in text for word in ["persuade", "influence",...]):
         return AGENTS["ethos"]
-    elif any(word in text for word in ["leadership", "team", "meeting", "authority"]):
+    elif any(word in text for word in ["leadership", "team",...]):
         return AGENTS["praxis"]
-    elif any(word in text for word in ["inner", "mindfulness", "alignment", "purpose", "anxiety"]):
-        return AGENTS["anima"]
-    elif any(word in text for word in ["appearance", "attire", "style", "grooming", "energy", "brand"]):
+    elif any(word in text for word in ["inner", "mindfulness",...]):
+        return AGNETS["anima"]
+    elif any(word in text for word in ["appearance", "attire",...]):
         return AGENTS["persona"]
-    elif any(word in text for word in ["first impression", "introduce", "introduction", "elevator", "rapport"]):
+    elif any(word in text for word in ["first impression",...]):
         return AGENTS["impressa"]
-    elif any(word in text for word in ["empathic", "listen", "understand", "compassion", "care"]):
+    elif any(word in text for word in ["empathic", "listen",...]):
         return AGENTS["sentio"]
     elif "senate" in text or "consult" in text:
         return SENATE
     else:
-        return {
-            "name": "GravitasGPT – Executive Presence Advisor",
-            "system": (
-                "You are GravitasGPT, a synthesis of leadership mentors who help CEOs "
-                "develop emotional intelligence, presence, persuasion, and integrity in communication."
-            ),
-        }
+        # Default to the Senate if on-topic but not specific
+        return SENATE
 
 
 def generate(messages, model_type):
@@ -192,20 +187,22 @@ def generate(messages, model_type):
                     "Your question seems outside this focus — would you like to explore one of these areas instead?"
                 )
                 return
+            
             with client.chat.completions.stream(
                 model="gpt-4o-mini",
                 messages=all_messages,
                 temperature=0.7,
             ) as response:
                 for event in response:
-                    if event.type == "content.delta" and event.delta:
-                        yield event.delta.content # <-- Fixed a small bug here
+                    # FIX: Get the content from the delta
+                    if event.type == "content.delta" and event.delta and event.delta.content:
+                        yield event.delta.content 
                     elif event.type == "content.done":
                         break
 
         except Exception as e:
-            # Send a clear error message to the user's chat screen
-            print(f"Error streaming response: {e}") # Also print to logs
+            # This print will show up in your Render Logs
+            print(f"Error streaming response: {e}") 
             yield f"\n[Error: Could not get response from AI. Check server logs.]"
 
     return stream()
@@ -215,7 +212,7 @@ def generate(messages, model_type):
 def gpt4():
     data = request.get_json()
     messages = data.get('messages', [])
-    model_type = data.get('model_type', None) # You aren't using this, which is fine
+    model_type = data.get('model_type', None)
     assistant_response = generate(messages, model_type)
     return Response(assistant_response, mimetype='text/event-stream')
 
