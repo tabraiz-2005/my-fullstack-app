@@ -1,45 +1,29 @@
 import os
-import magic  # For image detection
-import base64  # For handling images
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
-from dotenv import load_dotenv
 
-# Load .env file for local development
+# ==============================================
+# GravitasGPT Leadership & Communication Suite (v3)
+# ==============================================
+
+# --- Load environment ---
 load_dotenv()
-
-# Get the API key from the environment
-API_KEY = os.environ.get("OPENAI_API_KEY")
-
-# If the key is not found, stop the app and print a clear error
-if not API_KEY:
-    raise ValueError("OPENAI_API_KEY is not set. Please check your .env file or Render environment variables.")
-
 app = Flask(__name__)
 
-# Initialize the client with the key
-client = OpenAI(api_key=API_KEY)
+# --- Initialize OpenAI client ---
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-# This route serves your main HTML file
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
-# This is the /static/styles.css and /static/main.js
-# Flask handles this automatically from the 'static' folder.
-
+# ==============================================
+# --- Define Multi-Agent Personalities ---
+# ==============================================
 AGENTS = {
-    # --- NEW: Greeter Agent ---
-    "greeter": {
-        "name": "Greeter – Friendly AI",
-        "system": (
-            "You are a friendly and professional assistant for GravitasGPT. "
-            "A user is saying hello. Respond briefly and politely (1-2 sentences). "
-            "Welcome them and ask how you can help them with leadership, communication, or presence today."
-        ),
-    },
     "eidos": {
         "name": "Eidos – Emotional Intelligence Coach",
         "system": (
@@ -132,6 +116,7 @@ AGENTS = {
     },
 }
 
+# --- Optional Meta-Agent: “The Senate” ---
 SENATE = {
     "name": "The Senate – Council of Mentors",
     "system": (
@@ -142,30 +127,23 @@ SENATE = {
 }
 
 
+# ==============================================
+# --- Dynamic Agent Detection ---
+# ==============================================
 def detect_agent(user_input: str):
     text = user_input.lower().strip()
 
-    # --- NEW: Check for simple greetings first ---
-    greetings = ["hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening"]
-    # Use 'in' for exact matches on simple greetings
-    if text in greetings:
-        print(f"DEBUG: Query '{text}' is a GREETING. Routing to Greeter.")
-        return AGENTS["greeter"]
-
     # Check if query belongs to GravitasGPT domain
     leadership_terms = [
-        "leader", "leadership", "team", "emotion", "empathy", "speech", "presence",
-        "communicate", "communication", "influence", "virtue", "authority", "values",
-        "mindfulness", "presentation", "confidence", "persuasion", "integrity",
-        "motivation", "body language", "posture", "feeling", "anxiety", "stress"
+        "leadership", "team", "emotion", "empathy", "speech", "presence", "communication",
+        "influence", "virtue", "authority", "values", "mindfulness", "presentation", "confidence",
+        "persuasion", "integrity", "motivation", "body language", "posture"
     ]
-    # Use 'any' to see if any term is a substring of the user's input
     if not any(term in text for term in leadership_terms):
-        print(f"DEBUG: Query '{text}' is OFF-TOPIC. Routing to Guardian.")  # DEBUG LOG
         return AGENTS["guardian"]
 
     # Agent routing
-    if any(word in text for word in ["emotion", "empathy", "feeling", "conflict", "sensitive", "stress"]):
+    if any(word in text for word in ["emotion", "empathy", "feeling", "conflict", "sensitive"]):
         return AGENTS["eidos"]
     elif any(word in text for word in ["body", "gesture", "posture", "tone", "eye contact", "nonverbal"]):
         return AGENTS["kinesis"]
@@ -173,79 +151,43 @@ def detect_agent(user_input: str):
         return AGENTS["gravis"]
     elif any(word in text for word in ["virtue", "integrity", "values", "duty", "ethics", "honor"]):
         return AGENTS["virtus"]
-    elif any(word in text for word in ["persuade", "influence", "story", "speech", "pitch", "proposal", "communicate", "communication"]):
+    elif any(word in text for word in ["persuade", "influence", "story", "speech", "pitch", "proposal"]):
         return AGENTS["ethos"]
-    elif any(word in text for word in ["leader", "leadership", "team", "meeting", "authority"]):
+    elif any(word in text for word in ["leadership", "team", "meeting", "authority"]):
         return AGENTS["praxis"]
     elif any(word in text for word in ["inner", "mindfulness", "alignment", "purpose", "anxiety"]):
         return AGENTS["anima"]
     elif any(word in text for word in ["appearance", "attire", "style", "grooming", "energy", "brand"]):
         return AGENTS["persona"]
-    elif any(word in text for word in ["first impression", "introduce", "introduction", "elevator", "rapport", "impress"]):
+    elif any(word in text for word in ["first impression", "introduce", "introduction", "elevator", "rapport"]):
         return AGENTS["impressa"]
     elif any(word in text for word in ["empathic", "listen", "understand", "compassion", "care"]):
         return AGENTS["sentio"]
     elif "senate" in text or "consult" in text:
         return SENATE
     else:
-        # Default to the Senate if on-topic but not specific
-        print(f"DEBUG: Query '{text}' is ON-TOPIC but not specific. Routing to Senate.")  # DEBUG LOG
-        return SENATE
+        return {
+            "name": "GravitasGPT – Executive Presence Advisor",
+            "system": (
+                "You are GravitasGPT, a synthesis of leadership mentors who help CEOs "
+                "develop emotional intelligence, presence, persuasion, and integrity in communication."
+            ),
+        }
 
 
-def generate(messages, model_type, image_data_url):
+# ==============================================
+# --- Streaming Response Generator ---
+# ==============================================
+def generate(messages, model_type):
     def stream():
         try:
-            # --- START OF FIX: Corrected logic ---
-            
-            # Get the text part of the last user message
-            user_message_text = ""
-            if messages:
-                last_message = messages[-1]
-                if last_message['role'] == 'user':
-                    # Handle both string and list content
-                    if isinstance(last_message['content'], str):
-                        user_message_text = last_message['content']
-                    elif isinstance(last_message['content'], list):
-                        # Find the text part
-                        for part in last_message['content']:
-                            if part['type'] == 'text':
-                                user_message_text = part['text']
-                                break
-            
-            # --- ADDED DEBUG LOGGING ---
-            print(f"\nDEBUG: Received user message: '{user_message_text}'")
-            # --- THIS IS THE FIX: Changed 'image_data' to 'image_data_url' ---
-            if image_data_url:
-                print("DEBUG: Image data was received.")
-            
-            selected_agent = detect_agent(user_message_text)
-            print(f"DEBUG: Routed to agent: {selected_agent['name']}")
-            # --- END DEBUG LOGGING ---
+            user_message = next((m["content"] for m in reversed(
+                messages) if m["role"] == "user"), "")
+            selected_agent = detect_agent(user_message)
 
-            # Prepare the API message payload
-            api_messages = [
+            all_messages = [
                 {"role": "system", "content": selected_agent["system"]}
-            ]
-
-            # --- START OF FIX 2: Correctly build message history ---
-            
-            # Add all messages *except* the last one
-            if len(messages) > 1:
-                api_messages.extend(messages[:-1]) 
-
-            # Now, construct the last user message with text and image
-            content_parts = [{"type": "text", "text": user_message_text}]
-            if image_data_url:
-                content_parts.append({
-                    "type": "image_url",
-                    "image_url": { "url": image_data_url, "detail": "low" }
-                })
-            
-            # Add the final, combined user message
-            api_messages.append({"role": "user", "content": content_parts})
-            # --- END OF FIX 2 ---
-
+            ] + messages
 
             # Guardian response for out-of-scope questions
             if selected_agent["name"].startswith("Guardian"):
@@ -254,39 +196,39 @@ def generate(messages, model_type, image_data_url):
                     "Your question seems outside this focus — would you like to explore one of these areas instead?"
                 )
                 return
-            
-            # --- Corrected streaming logic from before ---
+
+            # Stream model output
             with client.chat.completions.stream(
                 model="gpt-4o-mini",
-                messages=api_messages,
+                messages=all_messages,
                 temperature=0.7,
-                max_tokens=2048
             ) as response:
-                # Iterate over the stream of chunks
-                for chunk in response:
-                    # Check if the chunk has content and yield it
-                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                        yield chunk.choices[0].delta.content
-            # --- END OF FIX ---
+                for event in response:
+                    if event.type == "content.delta" and event.delta:
+                        yield event.delta
+                    elif event.type == "content.done":
+                        break
 
         except Exception as e:
-            # This print will show up in your Render Logs
-            print(f"Error streaming response: {e}")
-            yield f"\n[Error: Could not get response from AI. Check server logs.]"
+            yield f"\n[Error]: {str(e)}"
 
     return stream()
 
 
+# ==============================================
+# --- Flask Routes ---
+# ==============================================
 @app.route('/gpt4', methods=['POST'])
 def gpt4():
     data = request.get_json()
     messages = data.get('messages', [])
-    image_data_url = data.get('image', None)  # Get image data
     model_type = data.get('model_type', None)
-    assistant_response = generate(messages, model_type, image_data_url)
+    assistant_response = generate(messages, model_type)
     return Response(assistant_response, mimetype='text/event-stream')
 
 
+# ==============================================
+# --- Run Flask ---
+# ==============================================
 if __name__ == '__main__':
     app.run(debug=True)
-
