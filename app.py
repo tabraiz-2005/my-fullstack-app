@@ -1,12 +1,13 @@
 import os
-from dotenv import load_dotenv
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
 
-load_dotenv("/etc/secrets/.env")
+# Load the OpenAI key from Render secrets
+os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY", "")
+
 app = Flask(__name__)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 
 @app.route('/')
