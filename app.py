@@ -191,7 +191,7 @@ def detect_agent(user_input: str):
         return SENATE
 
 
-def generate(messages, model_type, image_data=None): # <-- UPDATED to accept image
+def generate(messages, model_type, image_data_url):
     def stream():
         try:
             # Get the text part of the last user message
@@ -218,44 +218,30 @@ def generate(messages, model_type, image_data=None): # <-- UPDATED to accept ima
             print(f"DEBUG: Routed to agent: {selected_agent['name']}")
             # --- END DEBUG LOGGING ---
 
-            # Build the system message
-            all_messages = [
+            # Prepare the API message payload
+            api_messages = [
                 {"role": "system", "content": selected_agent["system"]}
             ]
-            
-            # Add all *previous* messages (history)
-            all_messages.extend(messages[:-1]) # Add all but the last one
 
-            # --- NEW: Build the final user message (text + optional image) ---
-            last_user_message_content = []
+            # Add text and image to the *last* user message
+            last_user_message = messages[-1]
+            content_parts = [{"type": "text", "text": last_user_message["content"]}]
             
-            # Add text part
-            last_user_message_content.append({"type": "text", "text": user_message_text})
+            if image_data_url:
+                # Add the image to the content parts
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": image_data_url,
+                        "detail": "low" # Use low detail for speed/cost
+                    }
+                })
+            
+            # Add previous messages (if any)
+            api_messages.extend(messages[:-1])
+            # Add the final, combined user message
+            api_messages.append({"role": "user", "content": content_parts})
 
-            if image_data:
-                try:
-                    # image_data is "data:image/jpeg;base64,..."
-                    # We need to strip the prefix
-                    header, image_base64 = image_data.split(",", 1)
-                    # Get mime type from header
-                    image_mime_type = header.split(";")[0].split(":")[1]
-                    
-                    print(f"DEBUG: Image MIME type: {image_mime_type}")
-                    
-                    last_user_message_content.append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{image_mime_type};base64,{image_base64}",
-                            "detail": "low" # Use "low" detail for speed and cost
-                        }
-                    })
-                except Exception as e:
-                    print(f"ERROR: Failed to process image data: {e}")
-                    # Don't send corrupted image data
-            
-            # Add the complete final message to the list
-            all_messages.append({"role": "user", "content": last_user_message_content})
-            # --- END NEW LOGIC ---
 
             # Guardian response for out-of-scope questions
             if selected_agent["name"].startswith("Guardian"):
@@ -265,20 +251,19 @@ def generate(messages, model_type, image_data=None): # <-- UPDATED to accept ima
                 )
                 return
             
-            # --- CRASH FIX: This is the new, correct streaming loop ---
+            # --- START OF FIX: Corrected streaming logic ---
             with client.chat.completions.stream(
-                model="gpt-4o-mini", # This model supports images
-                messages=all_messages,
+                model="gpt-4o-mini",
+                messages=api_messages,
                 temperature=0.7,
+                max_tokens=2048
             ) as response:
+                # Iterate over the stream of chunks
                 for chunk in response:
                     # Check if the chunk has content and yield it
-                    if chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                         yield chunk.choices[0].delta.content
-                    # Check if the stream is finished
-                    elif chunk.choices[0].finish_reason == "stop":
-                        break
-            # --- END CRASH FIX ---
+            # --- END OF FIX ---
 
         except Exception as e:
             # This print will show up in your Render Logs
@@ -292,15 +277,13 @@ def generate(messages, model_type, image_data=None): # <-- UPDATED to accept ima
 def gpt4():
     data = request.get_json()
     messages = data.get('messages', [])
+    image_data_url = data.get('image', None) # Get image data
     model_type = data.get('model_type', None)
-    image_data = data.get('image', None) # <-- NEW: Get image from request
-    
-    # Pass image to the generator
-    assistant_response = generate(messages, model_type, image_data) 
-    
+    assistant_response = generate(messages, model_type, image_data_url)
     return Response(assistant_response, mimetype='text/event-stream')
 
 
 if __name__ == '__main__':
     app.run(debug=True)
+
 
