@@ -1,4 +1,6 @@
 import os
+import magic # <-- NEW: For image detection
+import base64 # <-- NEW: For handling images
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -27,6 +29,15 @@ def index():
 # Flask handles this automatically from the 'static' folder.
 
 AGENTS = {
+    # --- NEW: Greeter Agent ---
+    "greeter": {
+        "name": "Greeter – Friendly AI",
+        "system": (
+            "You are a friendly and professional assistant for GravitasGPT. "
+            "A user is saying hello. Respond briefly and politely (1-2 sentences). "
+            "Welcome them and ask how you can help them with leadership, communication, or presence today."
+        ),
+    },
     "eidos": {
         "name": "Eidos – Emotional Intelligence Coach",
         "system": (
@@ -132,7 +143,13 @@ SENATE = {
 def detect_agent(user_input: str):
     text = user_input.lower().strip()
 
-    # --- UPDATED KEYWORDS ---
+    # --- NEW: Check for simple greetings first ---
+    greetings = ["hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening"]
+    # Use 'in' for exact matches on simple greetings
+    if text in greetings:
+        print(f"DEBUG: Query '{text}' is a GREETING. Routing to Greeter.")
+        return AGENTS["greeter"]
+
     # Check if query belongs to GravitasGPT domain
     leadership_terms = [
         "leader", "leadership", "team", "emotion", "empathy", "speech", "presence", 
@@ -145,8 +162,7 @@ def detect_agent(user_input: str):
         print(f"DEBUG: Query '{text}' is OFF-TOPIC. Routing to Guardian.") # DEBUG LOG
         return AGENTS["guardian"]
 
-    # --- UPDATED KEYWORDS ---
-    # Agent routing (This is just a default router, you can make this smarter)
+    # Agent routing
     if any(word in text for word in ["emotion", "empathy", "feeling", "conflict", "sensitive", "stress"]):
         return AGENTS["eidos"]
     elif any(word in text for word in ["body", "gesture", "posture", "tone", "eye contact", "nonverbal"]):
@@ -173,24 +189,73 @@ def detect_agent(user_input: str):
         # Default to the Senate if on-topic but not specific
         print(f"DEBUG: Query '{text}' is ON-TOPIC but not specific. Routing to Senate.") # DEBUG LOG
         return SENATE
-    # ---END OF FIX---
 
 
-def generate(messages, model_type):
+def generate(messages, model_type, image_data=None): # <-- UPDATED to accept image
     def stream():
         try:
-            user_message = next((m["content"] for m in reversed(
-                messages) if m["role"] == "user"), "")
+            # Get the text part of the last user message
+            user_message_text = ""
+            if messages:
+                last_message = messages[-1]
+                if last_message['role'] == 'user':
+                    # Handle both string and list content
+                    if isinstance(last_message['content'], str):
+                        user_message_text = last_message['content']
+                    elif isinstance(last_message['content'], list):
+                        # Find the text part
+                        for part in last_message['content']:
+                            if part['type'] == 'text':
+                                user_message_text = part['text']
+                                break
             
             # --- ADDED DEBUG LOGGING ---
-            print(f"\nDEBUG: Received user message: '{user_message}'")
-            selected_agent = detect_agent(user_message)
+            print(f"\nDEBUG: Received user message: '{user_message_text}'")
+            if image_data:
+                print("DEBUG: Image data was received.")
+            
+            selected_agent = detect_agent(user_message_text)
             print(f"DEBUG: Routed to agent: {selected_agent['name']}")
             # --- END DEBUG LOGGING ---
 
+            # Build the system message
             all_messages = [
                 {"role": "system", "content": selected_agent["system"]}
-            ] + messages
+            ]
+            
+            # Add all *previous* messages (history)
+            all_messages.extend(messages[:-1]) # Add all but the last one
+
+            # --- NEW: Build the final user message (text + optional image) ---
+            last_user_message_content = []
+            
+            # Add text part
+            last_user_message_content.append({"type": "text", "text": user_message_text})
+
+            if image_data:
+                try:
+                    # image_data is "data:image/jpeg;base64,..."
+                    # We need to strip the prefix
+                    header, image_base64 = image_data.split(",", 1)
+                    # Get mime type from header
+                    image_mime_type = header.split(";")[0].split(":")[1]
+                    
+                    print(f"DEBUG: Image MIME type: {image_mime_type}")
+                    
+                    last_user_message_content.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{image_mime_type};base64,{image_base64}",
+                            "detail": "low" # Use "low" detail for speed and cost
+                        }
+                    })
+                except Exception as e:
+                    print(f"ERROR: Failed to process image data: {e}")
+                    # Don't send corrupted image data
+            
+            # Add the complete final message to the list
+            all_messages.append({"role": "user", "content": last_user_message_content})
+            # --- END NEW LOGIC ---
 
             # Guardian response for out-of-scope questions
             if selected_agent["name"].startswith("Guardian"):
@@ -200,17 +265,20 @@ def generate(messages, model_type):
                 )
                 return
             
+            # --- CRASH FIX: This is the new, correct streaming loop ---
             with client.chat.completions.stream(
-                model="gpt-4o-mini",
+                model="gpt-4o-mini", # This model supports images
                 messages=all_messages,
                 temperature=0.7,
             ) as response:
-                for event in response:
-                    # FIX: Get the content from the delta
-                    if event.type == "content.delta" and event.delta and event.delta.content:
-                        yield event.delta.content 
-                    elif event.type == "content.done":
+                for chunk in response:
+                    # Check if the chunk has content and yield it
+                    if chunk.choices[0].delta and chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+                    # Check if the stream is finished
+                    elif chunk.choices[0].finish_reason == "stop":
                         break
+            # --- END CRASH FIX ---
 
         except Exception as e:
             # This print will show up in your Render Logs
@@ -225,7 +293,11 @@ def gpt4():
     data = request.get_json()
     messages = data.get('messages', [])
     model_type = data.get('model_type', None)
-    assistant_response = generate(messages, model_type)
+    image_data = data.get('image', None) # <-- NEW: Get image from request
+    
+    # Pass image to the generator
+    assistant_response = generate(messages, model_type, image_data) 
+    
     return Response(assistant_response, mimetype='text/event-stream')
 
 
