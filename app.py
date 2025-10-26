@@ -8,9 +8,11 @@ app = Flask(__name__)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 AGENTS = {
     "eidos": {
@@ -114,6 +116,7 @@ SENATE = {
     ),
 }
 
+
 def detect_agent(user_input: str):
     text = user_input.lower().strip()
 
@@ -158,10 +161,12 @@ def detect_agent(user_input: str):
             ),
         }
 
+
 def generate(messages, model_type):
     def stream():
         try:
-            user_message = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+            user_message = next((m["content"] for m in reversed(
+                messages) if m["role"] == "user"), "")
             selected_agent = detect_agent(user_message)
 
             all_messages = [
@@ -199,6 +204,7 @@ def gpt4():
     model_type = data.get('model_type', None)
     assistant_response = generate(messages, model_type)
     return Response(assistant_response, mimetype='text/event-stream')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
