@@ -1,13 +1,24 @@
 import os
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
+from dotenv import load_dotenv # <-- 1. IMPORTED THIS
 
-# Load the OpenAI key from Render secrets
-os.environ["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY", "")
+# Load environment variables from .env file (for local development)
+# On Render, this line will be skipped, and it will use Render's variables
+load_dotenv() # <-- 2. ADDED THIS
+
+# 3. THIS BLOCK IS NEW AND SAFER
+# Get the API key from the environment
+API_KEY = os.environ.get("OPENAI_API_KEY")
+
+# If the key is not found, stop the app and print a clear error
+if not API_KEY:
+    raise ValueError("OPENAI_API_KEY is not set. Please check your .env file or Render environment variables.")
 
 app = Flask(__name__)
 
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+# Initialize the client with the key we found
+client = OpenAI(api_key=API_KEY) # <-- 4. USE THE VALIDATED KEY
 
 
 @app.route('/')
@@ -188,12 +199,14 @@ def generate(messages, model_type):
             ) as response:
                 for event in response:
                     if event.type == "content.delta" and event.delta:
-                        yield event.delta
+                        yield event.delta.content # <-- Fixed a small bug here
                     elif event.type == "content.done":
                         break
 
         except Exception as e:
-            yield f"\n[Error]: {str(e)}"
+            # Send a clear error message to the user's chat screen
+            print(f"Error streaming response: {e}") # Also print to logs
+            yield f"\n[Error: Could not get response from AI. Check server logs.]"
 
     return stream()
 
@@ -202,7 +215,7 @@ def generate(messages, model_type):
 def gpt4():
     data = request.get_json()
     messages = data.get('messages', [])
-    model_type = data.get('model_type', None)
+    model_type = data.get('model_type', None) # You aren't using this, which is fine
     assistant_response = generate(messages, model_type)
     return Response(assistant_response, mimetype='text/event-stream')
 
