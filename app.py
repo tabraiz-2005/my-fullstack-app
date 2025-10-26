@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from flask import Flask, render_template, request, Response
 from openai import OpenAI
 
-load_dotenv()
+load_dotenv("/etc/secrets/.env")
 app = Flask(__name__)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
