@@ -1,4 +1,4 @@
-// Wait for the DOM to be fully loaded
+// Wait for the DOM to be fully loaded before running scripts
 window.addEventListener("DOMContentLoaded", () => {
 
   // --- DOM Elements ---
@@ -6,11 +6,18 @@ window.addEventListener("DOMContentLoaded", () => {
   const chatForm = document.getElementById("chat-form");
   const userInputElem = document.getElementById("user-input");
   const submitBtn = document.getElementById("submitBtn");
-  const welcomeMessage = document.getElementById("welcome-message");
+  const menuToggle = document.getElementById("menu-toggle");
+  const sidebar = document.getElementById("sidebar");
+  
+  // --- NEW: Image Upload Elements ---
+  const uploadBtn = document.getElementById("upload-btn");
+  const imageUploadInput = document.getElementById("image-upload-input");
+  const imagePreviewContainer = document.getElementById("image-preview-container");
 
   // --- State ---
-  let messages = []; // This will hold the chat history for the API
+  let messages = [];
   let autoScrollState = true;
+  let currentImageBase64 = null; // --- NEW: To store image data ---
 
   // --- Markdown Renderer ---
   const md = window.markdownit ? window.markdownit() : { render: (text) => text };
@@ -18,25 +25,28 @@ window.addEventListener("DOMContentLoaded", () => {
   // --- Helper Functions ---
 
   /**
-   * Renders message content to an element, handling markdown and code highlighting.
+   * Renders and highlights code in a message element.
+   * @param {string} content The message content.
+   * @param {HTMLElement} element The <p> tag to put the content in.
    */
   function renderMessageContent(content, element) {
     let renderedContent = md.render(content).trim();
     element.innerHTML = renderedContent;
+
     if (window.hljs) {
-      element.querySelectorAll("pre code").forEach(window.hljs.highlightElement);
+      element.querySelectorAll("pre code").forEach((codeElement) => {
+        window.hljs.highlightElement(codeElement);
+      });
     }
   }
 
   /**
    * Adds a message to the chat display.
+   * @param {string} role 'user' or 'assistant'.
+   * @param {string} [content] The message content.
+   * @returns {HTMLElement} The <p> element where content will be streamed.
    */
   function addMessageToDiv(role, content = "") {
-    // Hide welcome message on first chat
-    if (welcomeMessage) {
-      welcomeMessage.style.display = "none";
-    }
-
     let messageDiv = document.createElement("div");
     messageDiv.className = `message ${role}-message`;
 
@@ -49,21 +59,23 @@ window.addEventListener("DOMContentLoaded", () => {
 
     chatMessagesDiv.appendChild(messageDiv);
     autoScroll();
-    return messageText; // Return the <p> tag for streaming
+
+    return messageText;
   }
 
   /**
    * Adds or removes a typing indicator.
+   * @param {boolean} show True to show, false to remove.
    */
   function showTypingIndicator(show) {
     let indicator = document.getElementById("typing-indicator");
     if (show) {
       if (!indicator) {
-        let messageDiv = document.createElement("div");
-        messageDiv.className = "message assistant-message";
-        messageDiv.id = "typing-indicator";
-        messageDiv.innerHTML = "<p class='typing-indicator'><span></span><span></span><span></span></p>";
-        chatMessagesDiv.appendChild(messageDiv);
+        indicator = document.createElement("div");
+        indicator.id = "typing-indicator";
+        indicator.className = "message assistant-message typing-indicator";
+        indicator.innerHTML = "<span></span><span></span><span></span>";
+        chatMessagesDiv.appendChild(indicator);
         autoScroll();
       }
     } else {
@@ -75,6 +87,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
   /**
    * Handles the streaming response from the backend.
+   * @param {Response} response The fetch response object.
+   * @param {HTMLElement} messageTextElem The target <p> element.
    */
   async function handleResponse(response, messageTextElem) {
     const reader = response.body.getReader();
@@ -85,12 +99,15 @@ window.addEventListener("DOMContentLoaded", () => {
     while (true) {
       const { value, done } = await reader.read();
       if (done) {
-        messages.push({ role: "assistant", content: assistantMessage });
+        messages.push({
+          role: "assistant",
+          content: assistantMessage,
+        });
         break;
       }
 
       if (firstChunk) {
-        showTypingIndicator(false); // Remove indicator
+        showTypingIndicator(false); // Remove indicator on first text
         firstChunk = false;
       }
 
@@ -104,24 +121,37 @@ window.addEventListener("DOMContentLoaded", () => {
 
   /**
    * Sends the chat history to the backend.
+   * @param {string | null} imageBase64 The base64 encoded image string
+   * @returns {Promise<Response | null>} The fetch promise or null on error.
    */
-  async function postRequest() {
+  async function postRequest(imageBase64 = null) {
     try {
+      // Get the last user message text
+      const lastUserMessage = messages.length > 0 ? messages[messages.length - 1].content : "";
+      
+      const payload = {
+          messages: messages,
+          image: imageBase64,
+      };
+
       const response = await fetch("/gpt4", {
         method: "POST",
-        body: JSON.stringify({ messages }),
-        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
         throw new Error(`Server error: ${response.statusText}`);
       }
+      
       return response;
 
     } catch (error) {
       console.error("Fetch error:", error);
       showTypingIndicator(false);
-      addMessageToDiv("assistant", `**Error:** Unable to connect. ${error.message}`);
+      addMessageToDiv("assistant", `**Error:** Unable to connect to the server. ${error.message}`);
       return null;
     }
   }
@@ -139,7 +169,19 @@ window.addEventListener("DOMContentLoaded", () => {
    * Updates the send button's disabled state.
    */
   function updateButtonState() {
-    submitBtn.disabled = userInputElem.value.trim() === "";
+    // Enable button if there is text OR an image
+    const hasText = userInputElem.value.trim() !== "";
+    const hasImage = currentImageBase64 !== null;
+    submitBtn.disabled = !hasText && !hasImage;
+  }
+  
+  // --- NEW: Function to remove image preview ---
+  function removeImagePreview() {
+    currentImageBase64 = null;
+    imageUploadInput.value = null; // Reset file input
+    imagePreviewContainer.innerHTML = "";
+    imagePreviewContainer.style.display = "none";
+    updateButtonState(); // Check if button should be disabled
   }
 
   // --- Event Listeners ---
@@ -147,26 +189,49 @@ window.addEventListener("DOMContentLoaded", () => {
   // Handle form submission
   chatForm.addEventListener("submit", async function (event) {
     event.preventDefault();
-    let userInput = userInputElem.value.trim();
-    if (userInput === "") return;
 
+    let userInput = userInputElem.value.trim();
+    
+    // Check if there is text or an image
+    if (userInput === "" && !currentImageBase64) {
+      return;
+    }
+
+    // Disable button during response
     submitBtn.disabled = true;
 
-    messages.push({ role: "user", content: userInput });
-    addMessageToDiv("user", userInput);
-    
-    userInputElem.value = "";
-    userInputElem.style.height = "auto"; // Reset height
+    // Get the image and clear it
+    const imageToSend = currentImageBase64;
+    if (imageToSend) {
+        // Add the image to the user's message in the UI
+        const img = document.createElement("img");
+        img.src = imageToSend;
+        img.className = "message-image"; // You can style this
+        addMessageToDiv("user", userInput).appendChild(img);
+        removeImagePreview();
+    } else {
+        addMessageToDiv("user", userInput);
+    }
 
+    // Add user message to state
+    messages.push({ role: "user", content: userInput });
+    
+    // Clear input and reset height
+    userInputElem.value = "";
+    userInputElem.style.height = "auto";
+
+    // Show typing indicator
     showTypingIndicator(true);
 
-    const response = await postRequest();
+    // Post request and handle stream
+    const response = await postRequest(imageToSend); // <-- Pass image
     if (response) {
       const assistantMessageElem = addMessageToDiv("assistant");
       await handleResponse(response, assistantMessageElem);
     }
 
-    submitBtn.disabled = false;
+    // Re-enable button
+    updateButtonState(); // Use function to check state
     userInputElem.focus();
   });
 
@@ -177,14 +242,14 @@ window.addEventListener("DOMContentLoaded", () => {
     updateButtonState();
   });
 
-  // Check button state
+  // Check button state on key up (for paste, etc.)
   userInputElem.addEventListener("keyup", updateButtonState);
 
-  // Handle Enter key (Shift+Enter for new line)
+  // Handle Enter key for submission (Shift+Enter for new line)
   userInputElem.addEventListener("keydown", function (event) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      chatForm.requestSubmit();
+      chatForm.requestSubmit(); // Triggers the 'submit' event
     }
   });
 
@@ -192,11 +257,58 @@ window.addEventListener("DOMContentLoaded", () => {
   chatMessagesDiv.addEventListener("scroll", function () {
     const isAtBottom =
       chatMessagesDiv.scrollHeight - chatMessagesDiv.clientHeight <=
-      chatMessagesDiv.scrollTop + 10;
+      chatMessagesDiv.scrollTop + 10; // 10px buffer
     autoScrollState = isAtBottom;
   });
 
+  // Mobile menu toggle
+  menuToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("is-open");
+  });
+  
+  // --- NEW: Event Listeners for Images ---
+  uploadBtn.addEventListener("click", () => {
+    imageUploadInput.click();
+  });
+
+  imageUploadInput.addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Check file size (e.g., max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        alert("Image is too large (max 5MB).");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      currentImageBase64 = e.target.result;
+      
+      // Show preview
+      imagePreviewContainer.innerHTML = ""; // Clear old preview
+      const img = document.createElement("img");
+      img.src = currentImageBase64;
+      img.className = "image-preview";
+      
+      const removeBtn = document.createElement("button");
+      removeBtn.id = "remove-image-btn";
+      removeBtn.type = "button"; // Don't submit form
+      removeBtn.innerHTML = "&times;";
+      removeBtn.onclick = removeImagePreview; // Hook up remove logic
+      
+      imagePreviewContainer.appendChild(img);
+      imagePreviewContainer.appendChild(removeBtn);
+      imagePreviewContainer.style.display = "block";
+      
+      updateButtonState(); // Enable send button
+    };
+    reader.readAsDataURL(file);
+  });
+  // --- END NEW ---
+
   // --- Initial Setup ---
-  updateButtonState();
-  userInputElem.focus();
+  updateButtonState(); // Set initial button state (disabled)
+  userInputElem.focus(); // Focus input on page load
 });
+
